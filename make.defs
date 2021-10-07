@@ -2,3 +2,4 @@ CXX=clang++
 CXXVERFLAGS=-std=c++17
 CXXINFOFLAGS=-g -Wall
 CXXOPTFLAGS=-O2
+LIBS=-lturbojpeg

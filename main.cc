@@ -3,6 +3,6 @@
 #include <string>
 
 int main(int argc, char **argv) {
-  std::vector<std::byte> arr = loadFile("Makefile");
+  Jpeg myjpeg = Jpeg::loadFromFile("Makefile");
   return 0;
 }
