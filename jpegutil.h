@@ -1,3 +1,6 @@
+#ifndef JPEGUTIL_H
+#define JPEGUTIL_H
+
 #include <turbojpeg.h>
 
 #include <cstddef>
@@ -47,3 +50,5 @@ template <typename Ret, typename... Params> struct Callback<Ret(Params...)> {
   }
   static std::function<Ret(Params...)> func;
 };
+
+#endif // JPEGUTIL_H
