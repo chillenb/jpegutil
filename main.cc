@@ -1,11 +1,12 @@
 #include <iostream>
-#include "jpegutil.h"
 #include <string>
 
+#include "jpegutil.h"
+
 int main(int argc, char **argv) {
-  if(argc <= 1)
+  if (argc <= 1)
     return 0;
-  
+
   Jpeg myjpeg = Jpeg::loadFromFile(std::string(argv[1]));
   std::cout << "Image is " << myjpeg.w << " by " << myjpeg.h << std::endl;
   myjpeg.loadDctCoeffs();
