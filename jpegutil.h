@@ -1,7 +1,9 @@
 #ifndef JPEGUTIL_H
 #define JPEGUTIL_H
 
-#include <turbojpeg.h>
+#include <stdio.h>
+#include <jpeglib.h>
+
 
 #include <cstddef>
 #include <functional>
@@ -17,38 +19,24 @@ public:
   int h; // height
   int w; // width
   size_t size;
+  Jpeg();
+  ~Jpeg();
 
   int inSubsamp, inColorspace;
 
   std::vector<std::byte> buf;
+  
+  struct jpeg_decompress_struct cinfo;
+  struct jpeg_error_mgr jerr;
 
-  Jpeg(std::vector<std::byte> data);
-  ~Jpeg();
+  void readJpeg(const std::string &filename);
 
-  static Jpeg loadFromFile(const std::string &filename);
+  void loadFromFile(const std::string &filename);
 
   void loadDctCoeffs();
 
-  class Dctcoeffs {
-  public:
-    Dctcoeffs(int width, int height);
-    int h; // height in 8x8 blocks
-    int w; // width in 8x8 blocks
-    std::vector<short> coeffdata;
-    int dummyFilter(short *coeffs, tjregion arrayRegion, tjregion planeRegion,
-                    int componentIndex, int transformIndex,
-                    tjtransform *transform);
-  };
-  Dctcoeffs *_coeffs;
-};
-
-template <typename T> struct Callback;
-
-template <typename Ret, typename... Params> struct Callback<Ret(Params...)> {
-  template <typename... Args> static Ret callback(Args... args) {
-    return func(args...);
-  }
-  static std::function<Ret(Params...)> func;
+private:
+  FILE *infile = NULL;
 };
 
 #endif // JPEGUTIL_H
