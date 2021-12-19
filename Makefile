@@ -5,7 +5,7 @@ all: jpegutil
 %.o: %.cc
 	$(CXX) $(CXXVERFLAGS) $(CXXFLAGS) $(CXXINFOFLAGS) $(CXXOPTFLAGS) -c $< -o $@
 
-jpegutil: main.o jpegutil.o
+jpegutil: main.o jpegutil.o tables.o
 	$(CXX) $(CXXFLAGS) $(LIBS) $^ -o $@
 
 clean:

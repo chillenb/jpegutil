@@ -28,8 +28,8 @@ default_luminance_qtable = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
 def cformat8by8(matrix, name='table'):
   strentries = [str(v) for v in matrix.flatten()]
   rows = [strentries[i:i+8] for i in range(0, 64, 8)]
-  body = ',\n'.join([', '.join(r) for r in rows])
-  return '{} {}[64] = {{\n{}}};'.format("int", name, body)
+  body = ',\n    '.join([', '.join(r) for r in rows])
+  return '{} {}[] = {{\n    {}}};'.format("const int", name, body)
 
 def solve_approx(qtable, verbose=False):
   n = 8
