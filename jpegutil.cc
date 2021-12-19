@@ -21,6 +21,7 @@ using std::string;
 using std::vector;
 
 
+
 void Jpeg::loadFromFile(const string &filename) {
   buf = loadFile(filename);
 };
@@ -42,9 +43,10 @@ void Jpeg::readJpeg(const std::string &filename) {
     fprintf(stderr, "can't open %s\n", filename.c_str());
     exit(-1);
   }
-  
   jpeg_stdio_src(&cinfo, infile);
   jpeg_read_header(&cinfo, TRUE);
+  w = cinfo.image_width;
+  h = cinfo.image_height;
 
 }
 
@@ -56,7 +58,34 @@ Jpeg::~Jpeg() {
 }
 
 void Jpeg::loadDctCoeffs() {
+  jvirt_barray_ptr* coef_arrays = jpeg_read_coefficients(&cinfo);
+  jpeg_component_info *compptr;
+  compptr = cinfo.comp_info;
+  JQUANT_TBL *qtblptr = compptr->quant_table;
+  dctcoeffs.resize(compptr->height_in_blocks * compptr->width_in_blocks * DCTSIZE2);
 
+  for(JDIMENSION blk_y = 0; blk_y < compptr->height_in_blocks;
+      blk_y += compptr->v_samp_factor) {
+    JBLOCKARRAY buffer = (cinfo.mem->access_virt_barray)
+      ((j_common_ptr)&cinfo, coef_arrays[0], blk_y,
+      (JDIMENSION)compptr->v_samp_factor, TRUE);
+    for(int offset_y = 0; offset_y < compptr->v_samp_factor; offset_y++) {
+      JBLOCKROW block = buffer[offset_y];
+      for(JDIMENSION blk_x = 0; blk_x < compptr->width_in_blocks; blk_x++) {
+        JCOEFPTR ptr = block[blk_x];
+        short *buf = &(dctcoeffs[(blk_x + blk_y * compptr->width_in_blocks)*DCTSIZE2]);
+        for(int k = 0; k < DCTSIZE2; k++) {
+            buf[k] = ptr[k];
+        }
+      }
+    }
+  }
+
+  qtable.resize(DCTSIZE2);
+  for(int k = 0; k < DCTSIZE2; k++) {
+    qtable[k] = qtblptr->quantval[k];
+  }
+  jpeg_finish_decompress(&cinfo);
 }
 
 vector<byte> loadFile(const string &filename) {

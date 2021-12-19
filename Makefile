@@ -6,7 +6,7 @@ all: jpegutil
 	$(CXX) $(CXXVERFLAGS) $(CXXFLAGS) $(CXXINFOFLAGS) $(CXXOPTFLAGS) -c $< -o $@
 
 jpegutil: main.o jpegutil.o
-	$(CXX) $(LIBS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $(LIBS) $^ -o $@
 
 clean:
 	rm -rf *.o jpegutil
