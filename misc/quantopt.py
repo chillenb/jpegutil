@@ -5,6 +5,8 @@ import numpy as np
 from scipy.fft import dctn, idctn, dct
 import cvxpy as cp
 
+from utils import cformat8by8
+
 # import matplotlib.pyplot as plt
 
 
@@ -40,22 +42,6 @@ default_luminance_qtable = np.array(
     ],
     dtype=int,
 )
-
-
-def cformat8by8(matrix, name="table", tablen=4):
-    """Format an 8x8 matrix of ints as a C array"""
-    matrix2d = np.reshape(matrix, (8, 8))
-    length = int(np.floor(np.log10(np.amax(matrix2d)))) + 1
-    maxentry_first_col = np.amax(matrix2d[:, 0])
-    diff = length - (int(np.floor(np.log10(maxentry_first_col))) + 1)
-    tab = " " * tablen
-    it = np.nditer(matrix2d, flags=["multi_index"])
-    strentries = [
-        f"{x:{length - diff if it.multi_index[1] == 0 else length}}" for x in it
-    ]
-    rows = [strentries[i : i + 8] for i in range(0, 64, 8)]
-    body = (",\n" + tab).join([", ".join(r) for r in rows])
-    return f"const int {name}[] = {{\n{tab}{body}}};"
 
 
 def solve_exact(quant_table, verbose=False):
