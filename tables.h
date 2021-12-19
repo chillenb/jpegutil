@@ -8,4 +8,4 @@ extern const int qtable_75[];
 extern const int weight_table_100[];
 extern const int qtable_100[];
 
-#endif
+#endif // TABLES_H
