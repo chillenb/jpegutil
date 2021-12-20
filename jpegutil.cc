@@ -1,4 +1,6 @@
 #include "jpegutil.h"
+#include "tables.h"
+#include "mrcodec.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -26,12 +28,73 @@ void Jpeg::loadFromFile(const string &filename) {
   buf = loadFile(filename);
 };
 
-Jpeg::Jpeg() {
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
+
+
+void Jpeg::initCompress(const std::string &filename) {
+  dinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_compress(&dinfo);
+  if ((outfile = fopen(filename.c_str(), "wb")) == NULL) {
+    std::cerr << "Can't open " << filename << "\n";
+    exit(1);
+  }
+  dinfo.image_width = w;
+  dinfo.image_height = h;
+  dinfo.in_color_space = JCS_GRAYSCALE;
+  dinfo.input_components = 1;
+  jpeg_stdio_dest(&dinfo, outfile);
+
+  jpeg_set_defaults(&dinfo);
+  //jpeg_set_quality(&dinfo, quality, TRUE);
+  dinfo.num_components = 1;
+  dinfo.optimize_coding = TRUE;
+  //jpeg_simple_progression(&dinfo);
+  //dinfo.arith_code = TRUE;
+
+  dinfo.jpeg_color_space = JCS_GRAYSCALE;
+
+  MixedRadixEncoder enc(qtable, wtable);
+  enc.loadData((u8*) &buf[0], buf.size());
+
+  if(dinfo.quant_tbl_ptrs[0] == NULL)
+    dinfo.quant_tbl_ptrs[0] = jpeg_alloc_quant_table((j_common_ptr) &dinfo);
+  for(int i = 0; i < DCTSIZE2; i++) {
+    dinfo.quant_tbl_ptrs[0]->quantval[i] = qtable[i];
+  }
+
+  JDIMENSION width_in_blocks = (dinfo.image_width + 7) / 8;
+  JDIMENSION height_in_blocks = (dinfo.image_height + 7) / 8;
+  std::cout << dinfo.num_components << std::endl;
+  jpeg_component_info *compptr = dinfo.comp_info;
+  compptr->height_in_blocks = height_in_blocks;
+  compptr->width_in_blocks = width_in_blocks;
+
+  compress_coefarray = (dinfo.mem->request_virt_barray)
+    ((j_common_ptr) &dinfo, JPOOL_IMAGE, FALSE, 
+    width_in_blocks, height_in_blocks, (JDIMENSION) 1);
+
+  dinfo.jpeg_width = dinfo.image_width;
+  dinfo.jpeg_height = dinfo.image_height;
+  jpeg_write_coefficients(&dinfo, &compress_coefarray);
+  JBLOCKARRAY buffer;
+  JBLOCKROW block;
+  JDIMENSION blk_x, blk_y;
+  for(blk_y = 0; blk_y < height_in_blocks; blk_y++) {
+    buffer = (*dinfo.mem->access_virt_barray)
+      ((j_common_ptr)&dinfo, compress_coefarray, blk_y,
+       (JDIMENSION) 1, TRUE);
+    block = buffer[0];
+    for(blk_x = 0; blk_x < width_in_blocks; blk_x++) {
+      JCOEFPTR ptr = block[blk_x];
+      enc.writeCoeffs(ptr);
+    }
+  }
+  jpeg_finish_compress(&dinfo);
 }
 
+
 void Jpeg::readJpeg(const std::string &filename) {
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_decompress(&cinfo);
   struct stat fs;
   if (stat(filename.c_str(), &fs) != 0) {
     std::cerr << "Could not stat file " << filename << ": ";
@@ -51,9 +114,12 @@ void Jpeg::readJpeg(const std::string &filename) {
 }
 
 Jpeg::~Jpeg() {
-  jpeg_destroy_decompress(&cinfo);
+  //jpeg_destroy_decompress(&cinfo);
   if(infile != NULL) {
     fclose(infile);
+  }
+  if(outfile != NULL) {
+    fclose(outfile);
   }
 }
 
@@ -81,9 +147,9 @@ void Jpeg::loadDctCoeffs() {
     }
   }
 
-  qtable.resize(DCTSIZE2);
+  read_qtable.resize(DCTSIZE2);
   for(int k = 0; k < DCTSIZE2; k++) {
-    qtable[k] = qtblptr->quantval[k];
+    read_qtable[k] = qtblptr->quantval[k];
   }
   jpeg_finish_decompress(&cinfo);
 }

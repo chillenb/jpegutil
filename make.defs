@@ -3,4 +3,4 @@ CXXFLAGS=-flto
 CXXVERFLAGS=-std=c++17
 CXXINFOFLAGS=-g -Wall
 CXXOPTFLAGS=-O2
-LIBS=-ljpeg
+LIBS=-ljpeg -lgmp

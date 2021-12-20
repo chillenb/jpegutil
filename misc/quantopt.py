@@ -2,6 +2,7 @@
 import sys
 import argparse
 import numpy as np
+from math import floor
 from scipy.fft import dctn, idctn, dct
 import cvxpy as cp
 
@@ -43,8 +44,22 @@ default_luminance_qtable = np.array(
     dtype=int,
 )
 
+mms_luminance_table = np.array(
+    [
+       [ 2,  2,  2,  3,  5,  6,  8, 10],
+       [ 2,  2,  2,  3,  5,  6,  8, 10],
+       [ 2,  2,  3,  5,  6,  8, 10, 12],
+       [ 3,  3,  5,  6,  8, 10, 12, 14],
+       [ 5,  5,  6,  8, 10, 12, 14, 15],
+       [ 6,  6,  8, 10, 12, 14, 15, 15],
+       [ 8,  8, 10, 12, 14, 15, 15, 15],
+       [10, 10, 12, 14, 15, 15, 15, 15]
+    ],
+    dtype=int,
+)
 
-def solve_exact(quant_table, verbose=False):
+
+def solve_exact(quant_table, verbose=False, relgap=0.0002):
     """Find best weights using mixed-integer conic optimization"""
     try:
         import mosek
@@ -71,7 +86,7 @@ def solve_exact(quant_table, verbose=False):
         cp.Maximize(cp.sum(cp.log(2 * weights + 1) / np.log(2))), constraints
     )
 
-    mparams = {mosek.dparam.mio_tol_rel_gap: 0.0002}
+    mparams = {mosek.dparam.mio_tol_rel_gap: relgap}
     prob.solve(solver=cp.MOSEK, mosek_params=mparams, verbose=verbose)
     best_weights = np.array(np.round(weights.value.reshape((8, 8))), dtype="int")
     print(f"{prob.solution.opt_val} bits per 8x8 block", file=sys.stderr)
@@ -111,6 +126,48 @@ def solve_approx(quant_table, verbose=False):
     print(f"Max luminance is {128 + prog_coef @ best_weights_integer.flatten() / 8}")
     return best_weights_integer
 
+def solve_pow2greedy(quant_table, verbose=False):
+    qtable_flat = quant_table.flatten()
+
+    # normalization
+    alphas = np.ones(8) * (2 ** (0.5))
+    alphas[0] = 2 ** (-0.5)
+    alpha_2d_matrix = np.outer(alphas, alphas)
+    # dctmat = compute_dct_matrix()
+
+    prog_coef = qtable_flat * alpha_2d_matrix.flatten()
+    unused = set(range(64))
+    wtable = np.zeros(64, dtype=int)
+    upper_budget = 127.0
+    lower_budget = 128.0
+    capacity = 0
+    done = False
+    while not done:
+        maxE=0
+        best_ind = -1
+        best_bits = 0
+        for ind in unused:
+            up_pow2 = floor(np.log2(upper_budget / (8*prog_coef[ind]) + 1))
+            lo_pow2 = floor(np.log2(lower_budget * (8*prog_coef[ind])))
+            bits = min(up_pow2, lo_pow2)
+            efficiency = bits / (prog_coef[ind] * (2**bits))
+            if efficiency > maxE:
+                maxE = efficiency
+                best_ind = ind
+                best_bits = bits
+        if best_ind >= 0:
+            upper_budget -= floor(np.log2(upper_budget / (8*prog_coef[best_ind]) + 1))
+            lower_budget -= floor(np.log2(lower_budget / (8*prog_coef[best_ind])))
+            if upper_budget < 0 or lower_budget < 0:
+                break
+            wtable[best_ind] = 2**best_bits
+            unused.remove(best_ind)
+            capacity += best_bits
+        else:
+            done = True
+    print(f"{capacity} bits per block")
+    print(f"{prog_coef @ wtable.T}")
+    return wtable.reshape((8,8))
 
 def jpeg_linqual(quality):
     """
@@ -140,7 +197,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Calculate best DCT weights for lossless embedding"
     )
+    parser.add_argument('--exact', action='store_true', default=False)
     parser.add_argument("--approx", action="store_true", default=False)
+    parser.add_argument('--pow2greedy', action="store_true", default=False)
     parser.add_argument("--cformat", action="store_true", default=False)
     parser.add_argument(
         "--zigzag",
@@ -149,6 +208,8 @@ if __name__ == "__main__":
         help="Print matrix in zigzag format",
     )
     parser.add_argument("--quality", type=int, dest="quality", default=50)
+    parser.add_argument("--mmsquality", action="store_true", default=False)
+    parser.add_argument("--relgap", type=float, default=0.0002)
     parser.add_argument(
         "--printqtable",
         action="store_true",
@@ -161,10 +222,15 @@ if __name__ == "__main__":
     linqual = jpeg_linqual(args.quality)
 
     qtable = jpeg_qtable(linqual)
+    if args.mmsquality:
+      qtable = mms_luminance_table
 
-    if not args.approx:
-        ans = solve_exact(qtable, verbose=args.verbose)
-    else:
+    if args.pow2greedy:
+        ans = solve_pow2greedy(qtable, verbose=args.verbose)
+
+    if args.exact:
+        ans = solve_exact(qtable, verbose=args.verbose, relgap=args.relgap)
+    if args.approx:
         ans = solve_approx(qtable, verbose=args.verbose)
 
     if args.cformat:
